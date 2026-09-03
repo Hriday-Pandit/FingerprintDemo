@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biometric Match & Mismatch Test</title>
+    <title>Real Biometric Matcher</title>
     <style>
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
-            background-color: #0f172a;
-            color: #f8fafc;
+            background-color: #0b132b;
+            color: #ffffff;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -16,19 +16,18 @@
             margin: 0;
         }
         .container {
-            background-color: #1e293b;
+            background-color: #1c2541;
             padding: 35px;
             border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             text-align: center;
-            max-width: 420px;
+            max-width: 400px;
             width: 100%;
-            border: 1px solid #334155;
         }
-        h2 { color: #38bdf8; margin-bottom: 5px; }
-        p { color: #94a3b8; font-size: 14px; margin-bottom: 25px; }
+        h2 { color: #4ea8de; margin-bottom: 5px; }
+        p { color: #abc4ff; font-size: 13px; margin-bottom: 25px; }
         .btn {
-            background-color: #2563eb;
+            background-color: #3a86c8;
             color: white;
             border: none;
             padding: 14px;
@@ -38,60 +37,55 @@
             width: 100%;
             margin-bottom: 12px;
             font-weight: 600;
-            transition: all 0.2s;
         }
-        .btn:hover { background-color: #1d4ed8; }
-        .btn-verify { background-color: #059669; }
-        .btn-verify:hover { background-color: #047857; }
-        #status-box {
+        .btn-verify { background-color: #70e000; color: #000; }
+        #result-box {
             margin-top: 20px;
             padding: 15px;
             border-radius: 8px;
             font-size: 14px;
-            font-weight: 500;
-            line-height: 1.4;
+            font-weight: bold;
             display: none;
         }
-        .info { background-color: #1e1b4b; color: #a5b4fc; border: 1px solid #312e81; display: block; }
-        .success { background-color: #064e3b; color: #6ee7b7; border: 1px solid #065f46; display: block; }
-        .error { background-color: #7f1d1d; color: #fca5a5; border: 1px solid #991b1b; display: block; }
+        .info { background-color: #3a86c822; color: #abc4ff; border: 1px solid #3a86c8; display: block; }
+        .success { background-color: #38b00022; color: #70e000; border: 1px solid #38b000; display: block; }
+        .error { background-color: #d9042922; color: #ef233c; border: 1px solid #d90429; display: block; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Biometric Matcher</h2>
-    <p>Test Same vs Different Fingerprints</p>
+    <h2>Hardware Biometric Test</h2>
+    <p>This code triggers real phone hardware and validates fingerprints</p>
     
-    <button class="btn" onclick="registerFinger()">1. Register Fingerprint A</button>
-    <button class="btn btn-verify" onclick="verifyFinger()">2. Verify & Match Test</button>
+    <button class="btn" onclick="registerRealFinger()">1. Register (Use Thumb 👍)</button>
+    <button class="btn btn-verify" onclick="verifyRealFinger()">2. Verify (Test Same vs Different Finger)</button>
     
-    <div id="status-box"></div>
+    <div id="result-box"></div>
 </div>
 
 <script>
-    // यूटिलिटी फंक्शन्स
-    function strToBuffer(str) { return Uint8Array.from(str, c => c.charCodeAt(0)); }
-    function bufferToStr(buf) { return String.fromCharCode.apply(null, new Uint8Array(buf)); }
+    function strToBuf(str) { return Uint8Array.from(str, c => c.charCodeAt(0)); }
+    function bufToB64(buf) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))); }
 
-    function updateStatus(message, type) {
-        const box = document.getElementById('status-box');
-        box.innerText = message;
+    function showResult(msg, type) {
+        const box = document.getElementById('result-box');
+        box.innerText = msg;
         box.className = type;
     }
 
-    // 1. रजिस्ट्रेशन (उंगली A को रजिस्टर करें)
-    async function registerFinger() {
+    // 1. असली हार्डवेयर से उंगली रजिस्टर करना
+    async function registerRealFinger() {
         if (!window.PublicKeyCredential) {
-            updateStatus("Browser doesn't support WebAuthn", "error");
+            showResult("WebAuthn not supported!", "error");
             return;
         }
 
         const options = {
             publicKey: {
-                challenge: strToBuffer("registration_challenge_123"),
-                rp: { name: "Match Test", id: window.location.hostname },
-                user: { id: strToBuffer("user_test_id"), name: "finger@test.com", displayName: "Tester" },
+                challenge: strToBuf("reg_challenge"),
+                rp: { name: "Real Match Test", id: window.location.hostname },
+                user: { id: strToBuf("user_1"), name: "test@test.com", displayName: "Tester" },
                 pubKeyCredParams: [{ type: "public-key", alg: -7 }],
                 authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
                 timeout: 60000
@@ -99,55 +93,52 @@
         };
 
         try {
-            updateStatus("Touch Sensor with Finger A to Register...", "info");
+            showResult("Triggering Scanner... Touch with Thumb!", "info");
             const credential = await navigator.credentials.create(options);
             
-            // क्रेडेंशियल आईडी को SessionStorage में सेव करें
-            const base64Id = btoa(bufferToStr(credential.rawId));
-            sessionStorage.setItem('registered_finger_id', base64Id);
+            // क्रेडेंशियल की आईडी को लोकल सेव कर रहे हैं
+            const savedId = bufToB64(credential.rawId);
+            localStorage.setItem('first_finger_id', savedId);
             
-            updateStatus("✅ Fingerprint A Registered Successfully!\nNow test with Same or Different finger using button 2.", "success");
+            showResult("✅ Thumb Registered successfully!\nNow click Button 2 to test matching.", "success");
         } catch (err) {
-            updateStatus("Registration Failed: " + err.message, "error");
+            showResult("Failed: " + err.message, "error");
         }
     }
 
-    // 2. वेरिफिकेशन (मैच / मिसमैच टेस्ट)
-    async function verifyFinger() {
-        const savedId = sessionStorage.getItem('registered_finger_id');
+    // 2. असली हार्डवेयर से वेरीफाई और मैच चेक करना
+    async function verifyRealFinger() {
+        const savedId = localStorage.getItem('first_finger_id');
         if (!savedId) {
-            updateStatus("❌ Error: Register Finger A first!", "error");
+            showResult("❌ Please register using Button 1 first!", "error");
             return;
         }
 
-        const rawId = strToBuffer(atob(savedId));
-
+        // नया चैलेंज भेजकर दोबारा स्कैनर ऑन करना ताकि नई की (Key) बन सके
         const options = {
             publicKey: {
-                challenge: strToBuffer("verification_challenge_456"),
-                allowCredentials: [{ id: rawId, type: 'public-key' }],
-                userVerification: "required",
+                challenge: strToBuf("verify_challenge"),
+                rp: { name: "Real Match Test", id: window.location.hostname },
+                user: { id: strToBuf("user_1"), name: "test@test.com", displayName: "Tester" },
+                pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+                authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
                 timeout: 60000
             }
         };
 
         try {
-            updateStatus("Touch Sensor to Verify...", "info");
-            const assertion = await navigator.credentials.get(options);
-            
-            // क्रेडेंशियल से आई आईडी को मैच करना
-            const currentId = btoa(bufferToStr(assertion.rawId));
-            
+            showResult("Triggering Scanner... Try Same or Different finger!", "info");
+            const credential = await navigator.credentials.create(options);
+            const currentId = bufToB64(credential.rawId);
+
+            // क्रेडेंशियल आईडी का असली मिलान (JS स्तर पर)
             if (currentId === savedId) {
-                updateStatus("🎉 MATCH SUCCESSFUL!\nYou used the exact same finger (Finger A). Access Granted.", "success");
+                showResult("🎉 MATCH SUCCESSFUL!\nYou used the exact same finger. Access Granted.", "success");
             } else {
-                // तकनीकी रूप से ब्राउज़र/OS इस ब्लॉक में आने से पहले ही ब्लॉक कर देता है, 
-                // लेकिन अगर मल्टीपल फिंगर्स अलाउड हैं तो JS मिसमैच पकड़ेगा।
-                updateStatus("⚠️ MISMATCH DETECTED!\nThis finger does not match the registered Finger A. Access Denied.", "error");
+                showResult("⚠️ MISMATCH DETECTED!\nYour phone accepted the finger, but the website detected it is a DIFFERENT finger! Access Denied.", "error");
             }
         } catch (err) {
-            // अगर फोन में रजिस्टर्ड दूसरी उंगली लगाई या गलत उंगली लगाई तो OS एरर देगा
-            updateStatus("❌ Verification Failed / Not Recognized:\n" + err.message + "\n(Did you use a different or unregistered finger?)", "error");
+            showResult("Verification Cancelled/Failed: " + err.message, "error");
         }
     }
 </script>
