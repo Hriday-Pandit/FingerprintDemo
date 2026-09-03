@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Direct Fingerprint Scan Test</title>
+    <title>Biometric Match & Mismatch Test</title>
     <style>
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
-            background-color: #0e1118;
-            color: #ffffff;
+            background-color: #0f172a;
+            color: #f8fafc;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -16,146 +16,140 @@
             margin: 0;
         }
         .container {
-            background-color: #1c2333;
-            padding: 40px;
+            background-color: #1e293b;
+            padding: 35px;
             border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
             text-align: center;
-            max-width: 500px;
+            max-width: 420px;
             width: 100%;
-            border: 1px solid #2d3748;
+            border: 1px solid #334155;
         }
-        .icon {
-            font-size: 60px;
-            margin-bottom: 20px;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0% { opacity: 0.5; }
-            50% { opacity: 1; }
-            100% { opacity: 0.5; }
-        }
-        h2 { margin-bottom: 5px; color: #4ade80; }
-        p { color: #a0aec0; font-size: 14px; margin-bottom: 30px; }
-        .btn-retry {
-            background-color: #3b82f6;
+        h2 { color: #38bdf8; margin-bottom: 5px; }
+        p { color: #94a3b8; font-size: 14px; margin-bottom: 25px; }
+        .btn {
+            background-color: #2563eb;
             color: white;
             border: none;
-            padding: 12px 24px;
-            font-size: 15px;
+            padding: 14px;
+            font-size: 16px;
             border-radius: 8px;
             cursor: pointer;
+            width: 100%;
+            margin-bottom: 12px;
             font-weight: 600;
-            display: none;
-            margin: 20px auto 0;
+            transition: all 0.2s;
         }
-        #output {
-            text-align: left;
-            background: #0f141c;
+        .btn:hover { background-color: #1d4ed8; }
+        .btn-verify { background-color: #059669; }
+        .btn-verify:hover { background-color: #047857; }
+        #status-box {
+            margin-top: 20px;
             padding: 15px;
             border-radius: 8px;
-            font-family: monospace;
-            font-size: 12px;
-            color: #38bdf8;
-            overflow-x: auto;
-            white-space: pre-wrap;
-            max-height: 200px;
-            border: 1px solid #232d3f;
-            margin-top: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1.4;
             display: none;
         }
+        .info { background-color: #1e1b4b; color: #a5b4fc; border: 1px solid #312e81; display: block; }
+        .success { background-color: #064e3b; color: #6ee7b7; border: 1px solid #065f46; display: block; }
+        .error { background-color: #7f1d1d; color: #fca5a5; border: 1px solid #991b1b; display: block; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="icon">👆</div>
-    <h2 id="title">Scanning...</h2>
-    <p id="status">Starting fingerprint hardware, please wait...</p>
+    <h2>Biometric Matcher</h2>
+    <p>Test Same vs Different Fingerprints</p>
     
-    <div id="output"></div>
-    <button id="retryBtn" class="btn-retry" onclick="triggerScan()">Scan Again</button>
+    <button class="btn" onclick="registerFinger()">1. Register Fingerprint A</button>
+    <button class="btn btn-verify" onclick="verifyFinger()">2. Verify & Match Test</button>
+    
+    <div id="status-box"></div>
 </div>
 
 <script>
-    // स्ट्रिंग को एरे बफर में बदलने का यूटिलिटी फंक्शन
-    function strToBuffer(str) {
-        return Uint8Array.from(str, c => c.charCodeAt(0));
+    // यूटिलिटी फंक्शन्स
+    function strToBuffer(str) { return Uint8Array.from(str, c => c.charCodeAt(0)); }
+    function bufferToStr(buf) { return String.fromCharCode.apply(null, new Uint8Array(buf)); }
+
+    function updateStatus(message, type) {
+        const box = document.getElementById('status-box');
+        box.innerText = message;
+        box.className = type;
     }
 
-    // फिंगरप्रिंट ट्रिगर करने का मुख्य फंक्शन
-    async function triggerScan() {
-        const statusText = document.getElementById('status');
-        const titleText = document.getElementById('title');
-        const outputDiv = document.getElementById('output');
-        const retryBtn = document.getElementById('retryBtn');
-
-        titleText.innerText = "Scanning...";
-        titleText.style.color = "#3b82f6";
-        statusText.innerText = "Please touch your fingerprint sensor now.";
-        outputDiv.style.display = "none";
-        retryBtn.style.display = "none";
-
+    // 1. रजिस्ट्रेशन (उंगली A को रजिस्टर करें)
+    async function registerFinger() {
         if (!window.PublicKeyCredential) {
-            titleText.innerText = "Not Supported";
-            titleText.style.color = "#ef4444";
-            statusText.innerText = "Your browser or device does not support Biometric APIs.";
+            updateStatus("Browser doesn't support WebAuthn", "error");
             return;
         }
 
-        // ब्राउज़र को स्कैन एक्टिवेट करने के लिए डमी डेटा भेजना जरूरी है
-        const dummyScanOptions = {
+        const options = {
             publicKey: {
-                challenge: strToBuffer("temporary_challenge_for_direct_scan"),
-                rp: { name: "Instant Scan Demo", id: window.location.hostname },
-                user: {
-                    id: strToBuffer("temp_user_id"),
-                    name: "tester@scan.com",
-                    displayName: "Quick Tester"
-                },
+                challenge: strToBuffer("registration_challenge_123"),
+                rp: { name: "Match Test", id: window.location.hostname },
+                user: { id: strToBuffer("user_test_id"), name: "finger@test.com", displayName: "Tester" },
                 pubKeyCredParams: [{ type: "public-key", alg: -7 }],
-                authenticatorSelection: {
-                    authenticatorAttachment: "platform",
-                    userVerification: "required"
-                },
-                timeout: 30000
+                authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+                timeout: 60000
             }
         };
 
         try {
-            // हार्डवेयर स्कैनर को चालू करना
-            const credential = await navigator.credentials.create(dummyScanOptions);
+            updateStatus("Touch Sensor with Finger A to Register...", "info");
+            const credential = await navigator.credentials.create(options);
             
-            // स्कैन पूरा होने पर
-            titleText.innerText = "Scan Successful!";
-            titleText.style.color = "#4ade80";
-            statusText.innerText = "Fingerprint detected. Raw data received from hardware:";
+            // क्रेडेंशियल आईडी को SessionStorage में सेव करें
+            const base64Id = btoa(bufferToStr(credential.rawId));
+            sessionStorage.setItem('registered_finger_id', base64Id);
             
-            // डेटा को स्क्रीन पर दिखाना
-            const rawDataInfo = {
-                id: credential.id,
-                type: credential.type,
-                rawIdLength: credential.rawId.byteLength,
-                algorithmUsed: "ES256 (Elliptic Curve)"
-            };
-
-            outputDiv.innerText = JSON.stringify(rawDataInfo, null, 4);
-            outputDiv.style.display = "block";
-            retryBtn.style.display = "block";
-
-        } catch (error) {
-            titleText.innerText = "Scan Cancelled / Failed";
-            titleText.style.color = "#ef4444";
-            statusText.innerText = "Error: " + error.message;
-            retryBtn.style.display = "block";
+            updateStatus("✅ Fingerprint A Registered Successfully!\nNow test with Same or Different finger using button 2.", "success");
+        } catch (err) {
+            updateStatus("Registration Failed: " + err.message, "error");
         }
     }
 
-    // जैसे ही पेज लोड हो, ऑटोमैटिक स्कैन विंडो खुल जाए
-    window.onload = function() {
-        // ब्राउज़र यूजर इंटरेक्शन मांग सकता है, इसलिए 1 सेकंड का डिले दिया है
-        setTimeout(triggerScan, 1000);
-    };
+    // 2. वेरिफिकेशन (मैच / मिसमैच टेस्ट)
+    async function verifyFinger() {
+        const savedId = sessionStorage.getItem('registered_finger_id');
+        if (!savedId) {
+            updateStatus("❌ Error: Register Finger A first!", "error");
+            return;
+        }
+
+        const rawId = strToBuffer(atob(savedId));
+
+        const options = {
+            publicKey: {
+                challenge: strToBuffer("verification_challenge_456"),
+                allowCredentials: [{ id: rawId, type: 'public-key' }],
+                userVerification: "required",
+                timeout: 60000
+            }
+        };
+
+        try {
+            updateStatus("Touch Sensor to Verify...", "info");
+            const assertion = await navigator.credentials.get(options);
+            
+            // क्रेडेंशियल से आई आईडी को मैच करना
+            const currentId = btoa(bufferToStr(assertion.rawId));
+            
+            if (currentId === savedId) {
+                updateStatus("🎉 MATCH SUCCESSFUL!\nYou used the exact same finger (Finger A). Access Granted.", "success");
+            } else {
+                // तकनीकी रूप से ब्राउज़र/OS इस ब्लॉक में आने से पहले ही ब्लॉक कर देता है, 
+                // लेकिन अगर मल्टीपल फिंगर्स अलाउड हैं तो JS मिसमैच पकड़ेगा।
+                updateStatus("⚠️ MISMATCH DETECTED!\nThis finger does not match the registered Finger A. Access Denied.", "error");
+            }
+        } catch (err) {
+            // अगर फोन में रजिस्टर्ड दूसरी उंगली लगाई या गलत उंगली लगाई तो OS एरर देगा
+            updateStatus("❌ Verification Failed / Not Recognized:\n" + err.message + "\n(Did you use a different or unregistered finger?)", "error");
+        }
+    }
 </script>
 
 </body>
