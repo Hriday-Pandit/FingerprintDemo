@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebAuthn Fingerprint Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 12px;
+            transition: background-color 0.2s;
+            font-weight: 600;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .btn-secondary {
+            background-color: #28a745;
+        }
+        .btn-secondary:hover {
+            background-color: #218838;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            display: block !important;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            display: block !important;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Biometric Auth Test</h2>
+    <p>HTML, CSS, and JS WebAuthn API Demo (LocalStorage Powered)</p>
+    
+    <button class="btn" onclick="registerBiometric()">1. Register Fingerprint</button>
+    <button class="btn btn-secondary" onclick="loginBiometric()">2. Login with Fingerprint</button>
+    
+    <div id="status"></div>
+</div>
+
+<script>
+    // String को ArrayBuffer में बदलने के लिए यूटिलिटी फंक्शन
+    function bufferEncode(value) {
+        return Uint8Array.from(value, c => c.charCodeAt(0));
+    }
+
+    function bufferDecode(value) {
+        return String.fromCharCode.apply(null, new Uint8Array(value));
+    }
+
+    // स्क्रीन पर स्टेटस मैसेज दिखाने के लिए
+    function showStatus(message, isSuccess) {
+        const statusDiv = document.getElementById('status');
+        statusDiv.innerText = message;
+        statusDiv.className = isSuccess ? 'success' : 'error';
+    }
+
+    // 1. फिंगरप्रिंट रजिस्ट्रेशन फंक्शन
+    async function registerBiometric() {
+        if (!window.PublicKeyCredential) {
+            showStatus("Error: WebAuthn is not supported on this browser.", false);
+            return;
+        }
+
+        const createCredentialOptions = {
+            publicKey: {
+                challenge: bufferEncode("random_challenge_string_here"),
+                rp: {
+                    name: "Local Test App",
+                    id: window.location.hostname
+                },
+                user: {
+                    id: bufferEncode("user_id_001"),
+                    name: "testuser@example.com",
+                    displayName: "Test User"
+                },
+                pubKeyCredParams: [
+                    { type: "public-key", alg: -7 },  // ES256 एल्गोरिदम
+                    { type: "public-key", alg: -257 } // RS256 एल्गोरिदम
+                ],
+                authenticatorSelection: {
+                    authenticatorAttachment: "platform", // डिवाइस का इनबिल्ट स्कैनर उपयोग करें
+                    userVerification: "required"
+                },
+                timeout: 60000
+            }
+        };
+
+        try {
+            showStatus("Touch your fingerprint sensor...", true);
+            const credential = await navigator.credentials.create(createCredentialOptions);
+            
+            // क्रेडेंशियल आईडी को लोकल स्टोरेज में सेव करें
+            localStorage.setItem('rawCredentialId', btoa(bufferDecode(credential.rawId)));
+            
+            showStatus("Registration Successful! Fingerprint registered locally.", true);
+            console.log("Registered:", credential);
+        } catch (error) {
+            console.error(error);
+            showStatus("Registration Failed: " + error.message, false);
+        }
+    }
+
+    // 2. फिंगरप्रिंट लॉगिन (ऑथेंटिकेशन) फंक्शन
+    async function loginBiometric() {
+        const savedCredId = localStorage.getItem('rawCredentialId');
+        
+        if (!savedCredId) {
+            showStatus("Error: No registered fingerprint found. Please register first.", false);
+            return;
+        }
+
+        const rawId = bufferEncode(atob(savedCredId));
+
+        const getCredentialOptions = {
+            publicKey: {
+                challenge: bufferEncode("another_random_challenge_string"),
+                allowCredentials: [{
+                    id: rawId,
+                    type: 'public-key'
+                }],
+                userVerification: "required",
+                timeout: 60000
+            }
+        };
+
+        try {
+            showStatus("Verify your fingerprint...", true);
+            const assertion = await navigator.credentials.get(getCredentialOptions);
+            
+            showStatus("Login Successful! Biometric verified.", true);
+            console.log("Logged In:", assertion);
+        } catch (error) {
+            console.error(error);
+            showStatus("Login Failed: " + error.message, false);
+        }
+    }
+</script>
+
+</body>
+</html>
