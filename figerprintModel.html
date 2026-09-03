@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real Biometric Matcher</title>
+    <title>Perfect Biometric Validation</title>
     <style>
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
@@ -21,7 +21,7 @@
             border-radius: 16px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             text-align: center;
-            max-width: 400px;
+            max-width: 450px;
             width: 100%;
         }
         h2 { color: #4ea8de; margin-bottom: 5px; }
@@ -39,6 +39,19 @@
             font-weight: 600;
         }
         .btn-verify { background-color: #70e000; color: #000; }
+        #id-box {
+            background-color: #0b132b;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #e2e8f0;
+            word-break: break-all;
+            margin-bottom: 15px;
+            border: 1px solid #334155;
+            display: none;
+            text-align: left;
+        }
         #result-box {
             margin-top: 20px;
             padding: 15px;
@@ -46,6 +59,7 @@
             font-size: 14px;
             font-weight: bold;
             display: none;
+            line-height: 1.5;
         }
         .info { background-color: #3a86c822; color: #abc4ff; border: 1px solid #3a86c8; display: block; }
         .success { background-color: #38b00022; color: #70e000; border: 1px solid #38b000; display: block; }
@@ -55,90 +69,102 @@
 <body>
 
 <div class="container">
-    <h2>Hardware Biometric Test</h2>
-    <p>This code triggers real phone hardware and validates fingerprints</p>
+    <h2>Biometric ID Validator</h2>
+    <p>Register a finger and verify if the exact same finger is used</p>
     
-    <button class="btn" onclick="registerRealFinger()">1. Register (Use Thumb 👍)</button>
-    <button class="btn btn-verify" onclick="verifyRealFinger()">2. Verify (Test Same vs Different Finger)</button>
+    <button class="btn" onclick="registerFinger()">1. Register Fingerprint</button>
+    <div id="id-box"></div>
     
+    <button class="btn btn-verify" onclick="verifyFinger()">2. Verify Same Finger</button>
     <div id="result-box"></div>
 </div>
 
 <script>
+    // एन्कोडिंग और डिकोडिंग यूटिलिटीज (WebAuthn एरे बफर्स मांगता है)
     function strToBuf(str) { return Uint8Array.from(str, c => c.charCodeAt(0)); }
     function bufToB64(buf) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))); }
+    function b64ToBuf(b64) { return Uint8Array.from(atob(b64), c => c.charCodeAt(0)); }
 
     function showResult(msg, type) {
         const box = document.getElementById('result-box');
-        box.innerText = msg;
+        box.innerHTML = msg;
         box.className = type;
     }
 
-    // 1. असली हार्डवेयर से उंगली रजिस्टर करना
-    async function registerRealFinger() {
+    // 1. फिंगरप्रिंट क्रेडेंशियल बनाना (रजिस्ट्रेशन)
+    async function registerFinger() {
         if (!window.PublicKeyCredential) {
-            showResult("WebAuthn not supported!", "error");
+            showResult("WebAuthn is not supported on this device/browser.", "error");
             return;
         }
 
         const options = {
             publicKey: {
-                challenge: strToBuf("reg_challenge"),
-                rp: { name: "Real Match Test", id: window.location.hostname },
-                user: { id: strToBuf("user_1"), name: "test@test.com", displayName: "Tester" },
-                pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+                challenge: strToBuf("unique_registration_challenge"),
+                rp: { name: "Biometric Validation App", id: window.location.hostname },
+                user: { id: strToBuf("user_id_999"), name: "user@validation.com", displayName: "Tester" },
+                pubKeyCredParams: [{ type: "public-key", alg: -7 }], // ES256
                 authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
                 timeout: 60000
             }
         };
 
         try {
-            showResult("Triggering Scanner... Touch with Thumb!", "info");
+            showResult("Triggering hardware... Please touch the sensor to register.", "info");
             const credential = await navigator.credentials.create(options);
             
-            // क्रेडेंशियल की आईडी को लोकल सेव कर रहे हैं
-            const savedId = bufToB64(credential.rawId);
-            localStorage.setItem('first_finger_id', savedId);
+            // क्रेडेंशियल आईडी को बेस64 में बदलकर जावास्क्रिप्ट लोकल स्टोरेज में सेव करना
+            const savedIdBase64 = bufToB64(credential.rawId);
+            localStorage.setItem('saved_fingerprint_id', savedIdBase64);
             
-            showResult("✅ Thumb Registered successfully!\nNow click Button 2 to test matching.", "success");
+            // स्क्रीन पर क्रेडेंशियल आईडी दिखाना
+            const idBox = document.getElementById('id-box');
+            idBox.innerHTML = `<strong>Registered ID:</strong><br>${savedIdBase64}`;
+            idBox.style.display = 'block';
+            
+            showResult("✅ Fingerprint Registered Successfully!<br>ID saved in JavaScript storage. Now try to verify.", "success");
         } catch (err) {
-            showResult("Failed: " + err.message, "error");
+            showResult("Registration Failed: " + err.message, "error");
         }
     }
 
-    // 2. असली हार्डवेयर से वेरीफाई और मैच चेक करना
-    async function verifyRealFinger() {
-        const savedId = localStorage.getItem('first_finger_id');
-        if (!savedId) {
-            showResult("❌ Please register using Button 1 first!", "error");
+    // 2. सेव की गई आईडी का मिलान करना (वेरिफिकेशन)
+    async function verifyFinger() {
+        const savedIdBase64 = localStorage.getItem('saved_fingerprint_id');
+        if (!savedIdBase64) {
+            showResult("❌ No fingerprint registered yet. Please click Button 1 first.", "error");
             return;
         }
 
-        // नया चैलेंज भेजकर दोबारा स्कैनर ऑन करना ताकि नई की (Key) बन सके
+        // सेव की गई आईडी को वापस एरे बफर में बदलना
+        const rawId = b64ToBuf(savedIdBase64);
+
         const options = {
             publicKey: {
-                challenge: strToBuf("verify_challenge"),
-                rp: { name: "Real Match Test", id: window.location.hostname },
-                user: { id: strToBuf("user_1"), name: "test@test.com", displayName: "Tester" },
-                pubKeyCredParams: [{ type: "public-key", alg: -7 }],
-                authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+                challenge: strToBuf("unique_verification_challenge"),
+                // यह लाइन मोबाइल से कहती है कि सिर्फ इसी विशिष्ट क्रेडेंशियल आईडी वाली उंगली स्वीकार करो
+                allowCredentials: [{ id: rawId, type: 'public-key' }],
+                userVerification: "required",
                 timeout: 60000
             }
         };
 
         try {
-            showResult("Triggering Scanner... Try Same or Different finger!", "info");
-            const credential = await navigator.credentials.create(options);
-            const currentId = bufToB64(credential.rawId);
+            showResult("Triggering hardware... Touch the sensor to verify.", "info");
+            
+            // क्रेडेंशियल को कलेक्ट करना (यह मोबाइल की आंतरिक सुरक्षा से वेरिफिकेशन करवाता है)
+            const assertion = await navigator.credentials.get(options);
+            const currentIdBase64 = bufToB64(assertion.rawId);
 
-            // क्रेडेंशियल आईडी का असली मिलान (JS स्तर पर)
-            if (currentId === savedId) {
-                showResult("🎉 MATCH SUCCESSFUL!\nYou used the exact same finger. Access Granted.", "success");
+            // अंतिम सुरक्षा जांच (जावास्क्रिप्ट लेवल पर आईडी मैचिंग)
+            if (currentIdBase64 === savedIdBase64) {
+                showResult("🎉 MATCH SUCCESSFUL!<br>Verified! You used the exact same finger that was registered.", "success");
             } else {
-                showResult("⚠️ MISMATCH DETECTED!\nYour phone accepted the finger, but the website detected it is a DIFFERENT finger! Access Denied.", "error");
+                showResult("⚠️ MISMATCH DETECTED!<br>The phone validated it, but it does NOT match the registered finger ID.", "error");
             }
         } catch (err) {
-            showResult("Verification Cancelled/Failed: " + err.message, "error");
+            // अगर मोबाइल सुरक्षा पहचान जाती है कि यह वह उंगली नहीं है जो मांगी गई थी, तो वह एरर थ्रो करेगी
+            showResult("❌ VERIFICATION FAILED / MISMATCH:<br>" + err.message + "<br>(The phone rejected this finger because it doesn't match the registered ID!)", "error");
         }
     }
 </script>
