@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebAuthn Fingerprint Test</title>
+    <title>Direct Fingerprint Scan Test</title>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f6;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #0e1118;
+            color: #ffffff;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -15,174 +16,146 @@
             margin: 0;
         }
         .container {
-            background-color: #ffffff;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            background-color: #1c2333;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             text-align: center;
-            max-width: 400px;
+            max-width: 500px;
             width: 100%;
+            border: 1px solid #2d3748;
         }
-        h2 {
-            color: #333;
-            margin-bottom: 10px;
+        .icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
         }
-        p {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 25px;
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
         }
-        .btn {
-            background-color: #007bff;
+        h2 { margin-bottom: 5px; color: #4ade80; }
+        p { color: #a0aec0; font-size: 14px; margin-bottom: 30px; }
+        .btn-retry {
+            background-color: #3b82f6;
             color: white;
             border: none;
             padding: 12px 24px;
-            font-size: 16px;
-            border-radius: 6px;
+            font-size: 15px;
+            border-radius: 8px;
             cursor: pointer;
-            width: 100%;
-            margin-bottom: 12px;
-            transition: background-color 0.2s;
             font-weight: 600;
-        }
-        .btn:hover {
-            background-color: #0056b3;
-        }
-        .btn-secondary {
-            background-color: #28a745;
-        }
-        .btn-secondary:hover {
-            background-color: #218838;
-        }
-        #status {
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
             display: none;
+            margin: 20px auto 0;
         }
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-            display: block !important;
-        }
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-            display: block !important;
+        #output {
+            text-align: left;
+            background: #0f141c;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #38bdf8;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 200px;
+            border: 1px solid #232d3f;
+            margin-top: 20px;
+            display: none;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Biometric Auth Test</h2>
-    <p>HTML, CSS, and JS WebAuthn API Demo (LocalStorage Powered)</p>
+    <div class="icon">👆</div>
+    <h2 id="title">Scanning...</h2>
+    <p id="status">Starting fingerprint hardware, please wait...</p>
     
-    <button class="btn" onclick="registerBiometric()">1. Register Fingerprint</button>
-    <button class="btn btn-secondary" onclick="loginBiometric()">2. Login with Fingerprint</button>
-    
-    <div id="status"></div>
+    <div id="output"></div>
+    <button id="retryBtn" class="btn-retry" onclick="triggerScan()">Scan Again</button>
 </div>
 
 <script>
-    // String को ArrayBuffer में बदलने के लिए यूटिलिटी फंक्शन
-    function bufferEncode(value) {
-        return Uint8Array.from(value, c => c.charCodeAt(0));
+    // स्ट्रिंग को एरे बफर में बदलने का यूटिलिटी फंक्शन
+    function strToBuffer(str) {
+        return Uint8Array.from(str, c => c.charCodeAt(0));
     }
 
-    function bufferDecode(value) {
-        return String.fromCharCode.apply(null, new Uint8Array(value));
-    }
+    // फिंगरप्रिंट ट्रिगर करने का मुख्य फंक्शन
+    async function triggerScan() {
+        const statusText = document.getElementById('status');
+        const titleText = document.getElementById('title');
+        const outputDiv = document.getElementById('output');
+        const retryBtn = document.getElementById('retryBtn');
 
-    // स्क्रीन पर स्टेटस मैसेज दिखाने के लिए
-    function showStatus(message, isSuccess) {
-        const statusDiv = document.getElementById('status');
-        statusDiv.innerText = message;
-        statusDiv.className = isSuccess ? 'success' : 'error';
-    }
+        titleText.innerText = "Scanning...";
+        titleText.style.color = "#3b82f6";
+        statusText.innerText = "Please touch your fingerprint sensor now.";
+        outputDiv.style.display = "none";
+        retryBtn.style.display = "none";
 
-    // 1. फिंगरप्रिंट रजिस्ट्रेशन फंक्शन
-    async function registerBiometric() {
         if (!window.PublicKeyCredential) {
-            showStatus("Error: WebAuthn is not supported on this browser.", false);
+            titleText.innerText = "Not Supported";
+            titleText.style.color = "#ef4444";
+            statusText.innerText = "Your browser or device does not support Biometric APIs.";
             return;
         }
 
-        const createCredentialOptions = {
+        // ब्राउज़र को स्कैन एक्टिवेट करने के लिए डमी डेटा भेजना जरूरी है
+        const dummyScanOptions = {
             publicKey: {
-                challenge: bufferEncode("random_challenge_string_here"),
-                rp: {
-                    name: "Local Test App",
-                    id: window.location.hostname
-                },
+                challenge: strToBuffer("temporary_challenge_for_direct_scan"),
+                rp: { name: "Instant Scan Demo", id: window.location.hostname },
                 user: {
-                    id: bufferEncode("user_id_001"),
-                    name: "testuser@example.com",
-                    displayName: "Test User"
+                    id: strToBuffer("temp_user_id"),
+                    name: "tester@scan.com",
+                    displayName: "Quick Tester"
                 },
-                pubKeyCredParams: [
-                    { type: "public-key", alg: -7 },  // ES256 एल्गोरिदम
-                    { type: "public-key", alg: -257 } // RS256 एल्गोरिदम
-                ],
+                pubKeyCredParams: [{ type: "public-key", alg: -7 }],
                 authenticatorSelection: {
-                    authenticatorAttachment: "platform", // डिवाइस का इनबिल्ट स्कैनर उपयोग करें
+                    authenticatorAttachment: "platform",
                     userVerification: "required"
                 },
-                timeout: 60000
+                timeout: 30000
             }
         };
 
         try {
-            showStatus("Touch your fingerprint sensor...", true);
-            const credential = await navigator.credentials.create(createCredentialOptions);
+            // हार्डवेयर स्कैनर को चालू करना
+            const credential = await navigator.credentials.create(dummyScanOptions);
             
-            // क्रेडेंशियल आईडी को लोकल स्टोरेज में सेव करें
-            localStorage.setItem('rawCredentialId', btoa(bufferDecode(credential.rawId)));
+            // स्कैन पूरा होने पर
+            titleText.innerText = "Scan Successful!";
+            titleText.style.color = "#4ade80";
+            statusText.innerText = "Fingerprint detected. Raw data received from hardware:";
             
-            showStatus("Registration Successful! Fingerprint registered locally.", true);
-            console.log("Registered:", credential);
+            // डेटा को स्क्रीन पर दिखाना
+            const rawDataInfo = {
+                id: credential.id,
+                type: credential.type,
+                rawIdLength: credential.rawId.byteLength,
+                algorithmUsed: "ES256 (Elliptic Curve)"
+            };
+
+            outputDiv.innerText = JSON.stringify(rawDataInfo, null, 4);
+            outputDiv.style.display = "block";
+            retryBtn.style.display = "block";
+
         } catch (error) {
-            console.error(error);
-            showStatus("Registration Failed: " + error.message, false);
+            titleText.innerText = "Scan Cancelled / Failed";
+            titleText.style.color = "#ef4444";
+            statusText.innerText = "Error: " + error.message;
+            retryBtn.style.display = "block";
         }
     }
 
-    // 2. फिंगरप्रिंट लॉगिन (ऑथेंटिकेशन) फंक्शन
-    async function loginBiometric() {
-        const savedCredId = localStorage.getItem('rawCredentialId');
-        
-        if (!savedCredId) {
-            showStatus("Error: No registered fingerprint found. Please register first.", false);
-            return;
-        }
-
-        const rawId = bufferEncode(atob(savedCredId));
-
-        const getCredentialOptions = {
-            publicKey: {
-                challenge: bufferEncode("another_random_challenge_string"),
-                allowCredentials: [{
-                    id: rawId,
-                    type: 'public-key'
-                }],
-                userVerification: "required",
-                timeout: 60000
-            }
-        };
-
-        try {
-            showStatus("Verify your fingerprint...", true);
-            const assertion = await navigator.credentials.get(getCredentialOptions);
-            
-            showStatus("Login Successful! Biometric verified.", true);
-            console.log("Logged In:", assertion);
-        } catch (error) {
-            console.error(error);
-            showStatus("Login Failed: " + error.message, false);
-        }
-    }
+    // जैसे ही पेज लोड हो, ऑटोमैटिक स्कैन विंडो खुल जाए
+    window.onload = function() {
+        // ब्राउज़र यूजर इंटरेक्शन मांग सकता है, इसलिए 1 सेकंड का डिले दिया है
+        setTimeout(triggerScan, 1000);
+    };
 </script>
 
 </body>
